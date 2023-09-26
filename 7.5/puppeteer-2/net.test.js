@@ -1,7 +1,15 @@
-const { clickElement, putText, getText } = require("./lib/commands.js");
-const { generateName } = require("./lib/util.js");
+const { clickElement, getText } = require("./lib/commands.js");
+const {
+  confirmBooking,
+  getFreeRandomChair,
+  selectDate,
+  selectHall,
+} = require("./lib/util.js");
 
 let page;
+let dayAfterToday = 2;
+let hallNumber = 1;
+let severalChairs = 3;
 
 beforeEach(async () => {
   page = await browser.newPage();
@@ -12,44 +20,46 @@ afterEach(() => {
   page.close();
 });
 
-describe("Netology.ru tests", () => {
+describe("goToTheCinema tests", () => {
   beforeEach(async () => {
     page = await browser.newPage();
-    await page.goto("https://netology.ru");
+    await page.goto("http://qamid.tmweb.ru");
   });
 
-  test("The first test'", async () => {
-    const title = await page.title();
-    console.log("Page title: " + title);
-    await clickElement(page, "header a + a");
-    const title2 = await page.title();
-    console.log("Page title: " + title2);
-    const pageList = await browser.newPage();
-    await pageList.goto("https://netology.ru/navigation");
-    await pageList.waitForSelector("h1");
+  test("should book one chair'", async () => {
+    await selectDate(page, dayAfterToday);
+    await selectHall(page, hallNumber);
+    let freeChair = await getFreeRandomChair(page);
+    await clickElement(page, freeChair);
+    let actual = await confirmBooking(page);
+    expect(actual).toContain("ticket__info-qr");
   });
 
-  test("The first link text 'Медиа Нетологии'", async () => {
-    const actual = await getText(page, "header a + a");
-    expect(actual).toContain("Медиа Нетологии");
+  test("should book several chairs'", async () => {
+    await selectDate(page, dayAfterToday);
+    await selectHall(page, hallNumber);
+    for (let i = 0; i < severalChairs; i++) {
+      let freeChair = await getFreeRandomChair(page);
+      await clickElement(page, freeChair);
+    }
+    let actual = await confirmBooking(page);
+    expect(actual).toContain("ticket__info-qr");
+    let chairs = (await getText(page, "p:nth-child(2) > span")).split(", ");
+    expect(chairs.length).toEqual(3);
   });
 
-  test("The first link leads on 'Медиа' page", async () => {
-    await clickElement(page, "header a + a");
-    const actual = await getText(page, ".logo__media");
-    await expect(actual).toContain("Медиа");
+  test("shouldn't book one chair twice'", async () => {
+    await selectDate(page, dayAfterToday);
+    await selectHall(page, hallNumber);
+    let freeChair = await getFreeRandomChair(page);
+    await clickElement(page, freeChair);
+    let actual = await confirmBooking(page);
+    expect(actual).toContain("ticket__info-qr");
+    await page.goto("http://qamid.tmweb.ru");
+    await selectDate(page, dayAfterToday);
+    await selectHall(page, hallNumber);
+    await clickElement(page, freeChair);
+    let className = await page.$eval(freeChair, (el) => el.classList[2]);
+    expect(className).toContain("buying-scheme__chair_taken");
   });
-});
-
-test("Should look for a course", async () => {
-  await page.goto("https://netology.ru/navigation");
-  await putText(page, "input", "тестировщик");
-  const actual = await page.$eval("a[data-name]", (link) => link.textContent);
-  const expected = "Тестировщик ПО";
-  expect(actual).toContain(expected);
-});
-
-test("Should show warning if login is not email", async () => {
-  await page.goto("https://netology.ru/?modal=sign_in");
-  await putText(page, 'input[type="email"]', generateName(5));
 });
